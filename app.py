@@ -117,9 +117,15 @@ BASE = "https://mandi-api.onrender.com/v1"
 
 
 def _get(path, **params):
-    r = requests.get(f"{BASE}{path}", params={k: v for k, v in params.items() if v}, timeout=60)
-    r.raise_for_status()
-    return r.json()
+    last = None
+    for _ in range(2):  # the free server sometimes needs a second try after sleeping
+        try:
+            r = requests.get(f"{BASE}{path}", params={k: v for k, v in params.items() if v}, timeout=60)
+            r.raise_for_status()
+            return r.json()
+        except Exception as e:
+            last = e
+    raise last
 
 
 def _items(j):
@@ -499,9 +505,13 @@ with tab_choose:
         try:
             with st.spinner("Loading states (the first load can take up to a minute)..."):
                 states = get_states()
-        except Exception:
+        except Exception as e:
             states = []
-            st.warning("Could not load the list of states right now. Please try again in a minute.")
+            st.warning(f"Could not load the list of states right now ({type(e).__name__}). "
+                       "The free price server may be waking up or busy. Wait a moment, then press Retry.")
+            if st.button("↻ Retry", key="c_retry"):
+                st.cache_data.clear()
+                st.rerun()
         c_state = sb("🗺 State", states, "c_state", "Select your state")
         c_district = sb("📍 District / village", safe(get_districts, c_state) if c_state else [], "c_district",
                         "Select your district", disabled=not c_state)
