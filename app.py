@@ -1,5 +1,9 @@
+import re
+ 
 import pandas as pd
+import requests
 import streamlit as st
+ 
 from agent import run_agent
  
 st.set_page_config(page_title="Kisan Advisor", page_icon="🌾", layout="centered")
@@ -7,50 +11,120 @@ st.set_page_config(page_title="Kisan Advisor", page_icon="🌾", layout="centere
 st.markdown(
     """
     <style>
-    .hero {background: linear-gradient(135deg, #2e7d32 0%, #66bb6a 100%); padding: 28px 24px;
-           border-radius: 16px; color: white; margin-bottom: 18px;}
-    .hero h1 {margin: 0; font-size: 2.1rem; color: white;}
-    .hero p {margin: 6px 0 0 0; font-size: 1.02rem; opacity: 0.95;}
-    .chip {display: inline-block; background: rgba(255,255,255,0.2); border-radius: 20px;
-           padding: 3px 12px; margin: 10px 6px 0 0; font-size: 0.82rem;}
+    .stApp {background-color: #eaf5e4;}
+    h1, h2, h3 {color: #1b5e20;}
     div.stButton > button[kind="primary"] {background-color: #2e7d32; border: none; font-weight: 600;}
+    div[data-testid="stMetric"] {background: #ffffff; border-radius: 12px; padding: 10px 14px;}
     </style>
-    <div class="hero">
-      <h1>🌾 Kisan Advisor</h1>
-      <p>Live weather + live mandi prices + AI reasoning, in your language.</p>
-      <span class="chip">🌦 Open-Meteo</span><span class="chip">🧺 Agmarknet mandi prices</span>
-      <span class="chip">🤖 AI agent</span>
-    </div>
     """,
     unsafe_allow_html=True,
 )
  
-CROPS = ["Onion", "Tomato", "Potato", "Wheat", "Rice", "Other"]
+st.title("🌾 Kisan Advisor")
+st.write("Pick your state, crop and town to get advice based on live weather and the latest mandi prices.")
+ 
 LANGS = ["Same as my question", "English", "Hindi", "Marathi", "Tamil", "Telugu", "Kannada", "Bengali"]
-EXAMPLES = {
-    "🧅 Sell onions in Nashik?": ("Nashik", "Onion", "Should I sell my onions this week or wait?"),
-    "🍅 Tomatoes in Pune?": ("Pune", "Tomato", "Is it a good time to harvest and sell tomatoes?"),
-}
  
-st.session_state.setdefault("place", "Nashik")
-st.session_state.setdefault("crop_pick", "Onion")
-st.session_state.setdefault("question", "Should I sell my crop this week or wait?")
+# --- helpers: dropdown options come from the live Mandi Price API, so every choice has data ---
+BASE = "https://mandi-api.onrender.com/v1"
  
-st.caption("Quick examples")
-cols = st.columns(len(EXAMPLES))
-for col, (label, (p, c, q)) in zip(cols, EXAMPLES.items()):
-    if col.button(label, use_container_width=True):
-        st.session_state.place, st.session_state.crop_pick, st.session_state.question = p, c, q
  
-c1, c2 = st.columns(2)
-place = c1.text_input("📍 Village / town / district", key="place")
-crop_pick = c2.selectbox("🌱 Crop", CROPS, key="crop_pick")
-other = ""
-if crop_pick == "Other":
-    other = st.text_input("Type your crop (English name, e.g. Garlic)")
-crop = other.strip() if crop_pick == "Other" else crop_pick
+def _get(path, **params):
+    r = requests.get(f"{BASE}{path}", params={k: v for k, v in params.items() if v}, timeout=60)
+    r.raise_for_status()
+    return r.json()
  
-question = st.text_area("💬 Your question (any language)", key="question", height=90)
+ 
+def _items(j):
+    d = j.get("data", j) if isinstance(j, dict) else j
+    if isinstance(d, dict):
+        for k in ("states", "commodities", "markets", "items", "results"):
+            if isinstance(d.get(k), list):
+                return d[k]
+        return []
+    return d if isinstance(d, list) else []
+ 
+ 
+def _names(j):
+    out = set()
+    for x in _items(j):
+        if isinstance(x, str):
+            out.add(x.strip())
+        elif isinstance(x, dict):
+            v = next((x[k] for k in ("state", "commodity", "name", "market", "value", "label")
+                      if isinstance(x.get(k), str)), None) or next((v for v in x.values() if isinstance(v, str)), None)
+            if v:
+                out.add(v.strip())
+    return sorted(n for n in out if n)
+ 
+ 
+def town_name(market, district):
+    """Turn a mandi name like 'APMC Lasalgaon' or 'Lasalgaon(Niphad)' into a town name for the weather lookup."""
+    if re.search(r"co-?op|society|ltd|company|producer|dist ", market, re.I):
+        return district
+    t = re.sub(r"\(.*?\)", "", market)
+    t = re.sub(r"\bAPMC\b", "", t, flags=re.I).strip(" ,-")
+    return t or district
+ 
+ 
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_states():
+    return _names(_get("/states"))
+ 
+ 
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_crops(state):
+    return _names(_get("/commodities", state=state))
+ 
+ 
+@st.cache_data(ttl=1800, show_spinner=False)
+def get_towns(state, crop):
+    """(market, district) pairs that reported a price for this crop on the latest available date."""
+    rows = [r for r in _items(_get("/prices", state=state, commodity=crop))
+            if isinstance(r, dict) and r.get("market") and r.get("district") and r.get("arrival_date")]
+    if not rows:
+        return []
+    latest = max(r["arrival_date"] for r in rows)
+    return sorted({(r["market"].strip(), r["district"].strip()) for r in rows if r["arrival_date"] == latest},
+                  key=lambda x: (x[1], x[0]))
+# --- end helpers ---
+ 
+try:
+    with st.spinner("Loading available states (the first load can take up to a minute)..."):
+        states = get_states()
+except Exception:
+    states = []
+if not states:
+    st.warning("Could not load the list of states right now. Showing a default; please try again in a minute.")
+    states = ["Maharashtra"]
+ 
+state = st.selectbox("🗺 State", states)
+ 
+try:
+    with st.spinner("Loading crops..."):
+        crops = get_crops(state)
+except Exception:
+    crops = []
+if not crops:
+    st.warning("Could not load crops for this state right now.")
+    crops = ["Onion"]
+ 
+crop = st.selectbox("🌱 Crop", crops)
+ 
+try:
+    with st.spinner("Finding towns with prices for this crop..."):
+        towns = get_towns(state, crop)
+except Exception:
+    towns = []
+if not towns:
+    st.info("No recent price records for this crop in this state. Try another crop.")
+    st.stop()
+ 
+labels = {f"{m} ({d})": (m, d) for m, d in towns}
+town_label = st.selectbox("📍 Town / market (district)", list(labels))
+market, district = labels[town_label]
+ 
+question = st.text_area("💬 Your question (any language)", "Should I sell my crop this week or wait?", height=80)
 lang = st.selectbox("🗣 Reply language", LANGS)
  
 go = st.button("Get advice", type="primary", use_container_width=True)
@@ -63,11 +137,17 @@ def find(trace, tool):
     return None
  
  
+def clean(text):
+    """Drop any trailing 'Sources' line the model adds, to keep the answer short."""
+    kept = [ln for ln in text.splitlines() if not ln.strip().lstrip("*#_> -").lower().startswith("sources")]
+    return "\n".join(kept).strip()
+ 
+ 
 if go:
-    if not place.strip() or not crop:
-        st.warning("Please enter a place and a crop.")
-        st.stop()
-    q = f"Location: {place}. Crop: {crop}. Question: {question}"
+    town = town_name(market, district)
+    q = (f"State: {state}. District: {district}. Town for the weather forecast: {town}. "
+         f"Nearest mandi: {market}. Crop: {crop}. Question: {question} "
+         f"(Use the district for mandi prices. If the town cannot be geocoded, use the district name instead.)")
     if lang != "Same as my question":
         q += f" Reply in {lang}."
     trace = []
@@ -77,12 +157,10 @@ if go:
         except Exception as e:
             answer = f"Something went wrong while contacting the AI service: {e}"
  
-    tab_advice, tab_weather, tab_price, tab_steps = st.tabs(
-        ["🧑‍🌾 Advice", "🌦 Weather", "🧺 Mandi prices", "🔍 Agent steps"]
-    )
+    tab_advice, tab_weather, tab_price = st.tabs(["🧑‍🌾 Advice", "🌦 Weather", "🧺 Mandi prices"])
  
     with tab_advice:
-        st.markdown(answer)
+        st.markdown(clean(answer))
  
     with tab_weather:
         w = find(trace, "get_weather")
@@ -97,7 +175,6 @@ if go:
             st.line_chart(df[["max_c", "min_c"]])
             st.caption("Expected rain (mm)")
             st.bar_chart(df["rain_mm"])
-            st.caption("Source: Open-Meteo Forecast API (live)")
         else:
             st.info("No weather data was fetched for this question.")
  
@@ -113,19 +190,9 @@ if go:
             )
             st.dataframe(mdf, hide_index=True, use_container_width=True)
             st.bar_chart(mdf.set_index("Market")["Modal"])
-            st.caption(f"Price date: {p['latest_data_date']} · Source: {p.get('source', 'Agmarknet')}")
+            st.caption(f"Prices as of {p['latest_data_date']} (Rs per quintal)")
         else:
-            st.info("No mandi price data was available for this crop and place. "
-                    "The agent will say so in its advice.")
+            st.info("No mandi price data was available for this choice.")
  
-    with tab_steps:
-        st.caption("Every tool the AI agent called, with the raw result.")
-        for i, t in enumerate(trace, 1):
-            with st.expander(f"Step {i}: {t['tool']}", expanded=False):
-                st.write("Arguments:", t["args"])
-                st.json(t["result"])
-        if not trace:
-            st.info("The agent answered without calling any tools.")
+st.caption("Weather: Open-Meteo · Mandi prices: Agmarknet (latest reported, may be a few days old)")
  
-st.divider()
-st.caption("Kisan Advisor · Forge Gen AI Buildathon · Prices are the latest reported to Agmarknet and may be a few days old.")
