@@ -155,10 +155,23 @@ def get_crops(state):
     return _names(_get("/commodities", state=state))
 
 
+POPULAR = ["onion", "tomato", "potato", "wheat", "rice", "maize", "soyabean", "cotton", "banana", "cabbage"]
+
+
 @st.cache_data(ttl=1800, show_spinner=False)
 def get_districts(state):
-    rows = [r for r in _items(_get("/prices", state=state)) if isinstance(r, dict) and r.get("district")]
-    return sorted({r["district"].strip() for r in rows})
+    """Districts with price data. One call returns only a slice of the records, so we combine the
+    districts seen across the state as a whole and across its biggest crops."""
+    districts = set()
+    crops = safe(get_crops, state)
+    big = [c for c in crops if c.lower() in POPULAR][:6]
+    for crop in [None] + big:
+        try:
+            rows = _items(_get("/prices", state=state, commodity=crop, limit=1000))
+        except Exception:
+            continue
+        districts |= {r["district"].strip() for r in rows if isinstance(r, dict) and r.get("district")}
+    return sorted(districts)
 
 
 def safe(fn, *args):
