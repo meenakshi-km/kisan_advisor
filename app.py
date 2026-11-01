@@ -121,8 +121,12 @@ def _get(path, **params):
     for _ in range(2):  # the free server sometimes needs a second try after sleeping
         try:
             r = requests.get(f"{BASE}{path}", params={k: v for k, v in params.items() if v}, timeout=60)
+            if r.status_code == 429:  # rate limit: retrying only makes it worse
+                raise RuntimeError("Too many requests: the free price service allows 100 per 15 minutes")
             r.raise_for_status()
             return r.json()
+        except RuntimeError:
+            raise
         except Exception as e:
             last = e
     raise last
@@ -170,7 +174,7 @@ def get_districts(state):
     districts seen across the state as a whole and across its biggest crops."""
     districts = set()
     crops = safe(get_crops, state)
-    big = [c for c in crops if c.lower() in POPULAR][:6]
+    big = [c for c in crops if c.lower() in POPULAR][:3]  # few calls, because the service limits requests
     for crop in [None] + big:
         try:
             rows = _items(_get("/prices", state=state, commodity=crop, limit=1000))
@@ -262,8 +266,10 @@ def make_audio(text, whisper_lang=""):
 
 def try_audio(text, lang_hint=""):
     try:
+        st.session_state["_audio_err"] = ""
         return make_audio(text, lang_hint)
-    except Exception:
+    except Exception as e:
+        st.session_state["_audio_err"] = f"{type(e).__name__}: {str(e)[:150]}"
         return None
 
 
@@ -379,7 +385,8 @@ def render_results(res_key, ns):
                 st.audio(last["audio"], format="audio/mp3", autoplay=last["autoplay"])
                 last["autoplay"] = False
             else:
-                st.caption("Voice playback is not available right now.")
+                st.caption("Voice playback is not available right now. "
+                           f"({st.session_state.get('_audio_err') or 'no details'})")
     with tab_weather:
         if w and w.get("forecast"):
             df = pd.DataFrame(w["forecast"]).set_index("date")
