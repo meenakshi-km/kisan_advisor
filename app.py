@@ -17,37 +17,79 @@ import streamlit as st
 
 from agent import run_agent
 
+# Make sure the light theme file exists (the app creates it for you; Streamlit reads it when it starts)
+try:
+    _cfg = os.path.join(".streamlit", "config.toml")
+    if not os.path.exists(_cfg):
+        os.makedirs(".streamlit", exist_ok=True)
+        with open(_cfg, "w") as _f:
+            _f.write('[theme]\nbase = "light"\nprimaryColor = "#2f6b4f"\nbackgroundColor = "#cde6c0"\n'
+                     'secondaryBackgroundColor = "#f1f7ea"\ntextColor = "#17321f"\n')
+except Exception:
+    pass
+
 st.set_page_config(page_title="Kisan Advisor", page_icon="🌾", layout="centered")
 
 st.markdown(
     """
     <style>
     #MainMenu, footer {visibility: hidden;}
-    .stApp {background: linear-gradient(180deg, #f3f7ea 0%, #e3efdb 100%);}
-    .block-container {max-width: 560px; padding-top: 1.2rem; padding-bottom: 3rem;}
-    h1, h2, h3 {color: #1f5138;}
-    .hero {background: #ffffff; border-radius: 24px; padding: 18px 20px; margin-bottom: 14px;
-           box-shadow: 0 4px 18px rgba(31, 81, 56, 0.10);}
-    .hero .hi {color: #6b8a76; font-size: 0.9rem;}
-    .hero .name {color: #1f5138; font-size: 1.7rem; font-weight: 700; margin: 2px 0;}
-    .hero .sub {color: #6b8a76; font-size: 0.95rem;}
+    :root, .stApp {color-scheme: light;}
+    .stApp {background: linear-gradient(180deg, #cde6c0 0%, #a6d198 100%);}
+    [data-testid="stHeader"] {background: transparent;}
+    [data-testid="stAudioInput"] > div {background: #f1f7ea !important; border-radius: 14px;}
+    [data-testid="stChatMessage"] {background: #f1f7ea; border-radius: 16px;}
+    .stApp, .stApp p, .stApp label, .stApp li, .stApp span,
+    .stApp div[data-testid="stMarkdownContainer"], .stApp h1, .stApp h2, .stApp h3, .stApp h4 {color: #17321f;}
+    .stApp small, .stApp [data-testid="stCaptionContainer"] {color: #35563f !important;}
+    .block-container {max-width: 580px; padding-top: 1rem; padding-bottom: 3rem;}
+
+    .hero {position: relative; overflow: hidden; background: linear-gradient(135deg, #1b5538 0%, #3f9163 100%);
+           border-radius: 26px; padding: 22px 22px 16px; margin-bottom: 14px; box-shadow: 0 8px 22px rgba(23,50,31,0.28);}
+    .hero::after {content: ""; position: absolute; right: -40px; top: -44px; width: 170px; height: 170px;
+           border-radius: 50%; background: rgba(255,255,255,0.12);}
+    .hero::before {content: ""; position: absolute; right: 50px; bottom: -70px; width: 140px; height: 140px;
+           border-radius: 50%; background: rgba(255,255,255,0.08);}
+    .hero, .hero * {color: #ffffff !important;}
+    .hero .hi {opacity: 0.9; font-size: 0.9rem;}
+    .hero .name {font-size: 1.9rem; font-weight: 800; margin: 2px 0;}
+    .hero .sub {opacity: 0.93;}
+    .chip {display: inline-block; background: rgba(255,255,255,0.22); border-radius: 20px;
+           padding: 4px 12px; margin: 12px 6px 4px 0; font-size: 0.8rem;}
+    .steps {display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px;}
+    .step {background: rgba(255,255,255,0.88); border-radius: 18px; padding: 10px 6px; text-align: center;
+           font-size: 0.78rem; box-shadow: 0 2px 8px rgba(23,50,31,0.12);}
+    .step b {display: block; font-size: 1.3rem;}
+
     .grid {display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 10px 0 16px 0;}
-    .tile {border-radius: 20px; padding: 14px; color: #fff; min-height: 96px;}
-    .tile .k {font-size: 0.8rem; opacity: 0.92;}
-    .tile .v {font-size: 1.45rem; font-weight: 700; margin-top: 4px; line-height: 1.15;}
-    .tile .s {font-size: 0.75rem; opacity: 0.92; margin-top: 2px;}
-    .t1 {background: #4f9a6f;} .t2 {background: #5a86a8;} .t3 {background: #eea23a;} .t4 {background: #8c76c8;}
-    div[data-testid="stVerticalBlockBorderWrapper"] {background: #ffffff; border-radius: 22px;
-           box-shadow: 0 3px 14px rgba(31, 81, 56, 0.08); border: none;}
-    div[data-baseweb="select"] > div, textarea, input {border-radius: 14px !important;}
-    div.stButton > button {border-radius: 16px; font-weight: 600; padding: 0.55rem 1rem;}
-    div.stButton > button[kind="primary"] {background-color: #2f6b4f; border: none; color: #fff;}
-    div.stButton > button[kind="primary"]:disabled {background-color: #b9cdbf;}
-    .stTabs [data-baseweb="tab-list"] {gap: 6px;}
-    .stTabs [data-baseweb="tab"] {border-radius: 14px; padding: 6px 14px; background: rgba(255,255,255,0.6);}
-    .stTabs [aria-selected="true"] {background: #2f6b4f !important; color: #fff !important;}
+    .tile {border-radius: 20px; padding: 14px; min-height: 100px; box-shadow: 0 4px 12px rgba(23,50,31,0.18);}
+    .tile, .tile * {color: #ffffff !important;}
+    .tile .k {font-size: 0.8rem; opacity: 0.95;}
+    .tile .v {font-size: 1.5rem; font-weight: 800; margin-top: 4px; line-height: 1.15;}
+    .tile .s {font-size: 0.75rem; opacity: 0.95; margin-top: 2px;}
+    .t1 {background: linear-gradient(135deg, #2f8a5a, #56b17b);} .t2 {background: linear-gradient(135deg, #3f6f9a, #6a9cc4);}
+    .t3 {background: linear-gradient(135deg, #e08a1e, #f2b247);} .t4 {background: linear-gradient(135deg, #7a5fc0, #a18ae0);}
+
+    div[data-testid="stVerticalBlockBorderWrapper"] {background: #ffffff; border-radius: 22px; border: none;
+           box-shadow: 0 4px 16px rgba(23,50,31,0.14);}
+    div[data-baseweb="select"] > div, div[data-baseweb="input"], div[data-baseweb="textarea"] {
+           background: #f1f7ea !important; border-radius: 14px !important; border: 1.5px solid #8fbf8c !important;}
+    textarea, input {background: #f1f7ea !important; color: #17321f !important;}
+    textarea::placeholder, input::placeholder {color: #6a8d73 !important; opacity: 1;}
+    div[data-baseweb="select"] span, div[data-baseweb="select"] div {color: #17321f !important;}
+    div[data-baseweb="popover"] ul, div[data-baseweb="popover"] li {background: #f1f7ea !important; color: #17321f !important;}
+
+    div.stButton > button {border-radius: 16px; font-weight: 700; padding: 0.6rem 1rem; border: 2px solid #2a6b4a;
+           background: #ffffff;}
+    .stApp div.stButton > button[kind="primary"] {background: linear-gradient(135deg, #1f5e3f, #3f9163); border: none;}
+    .stApp div.stButton > button[kind="primary"] p {color: #ffffff !important;}
+    div.stButton > button:disabled {opacity: 0.5;}
+
+    .stTabs [data-baseweb="tab-list"] {gap: 8px;}
+    .stTabs [data-baseweb="tab"] {border-radius: 16px; padding: 8px 16px; background: rgba(255,255,255,0.78);}
+    .stTabs [aria-selected="true"] {background: #1b5538 !important;}
+    .stTabs [aria-selected="true"] p, .stTabs [aria-selected="true"] span {color: #ffffff !important;}
     .stTabs [data-baseweb="tab-highlight"], .stTabs [data-baseweb="tab-border"] {display: none;}
-    div[data-testid="stMetric"] {background: #f6faf2; border-radius: 14px; padding: 8px 12px;}
     </style>
     """,
     unsafe_allow_html=True,
@@ -59,7 +101,10 @@ greet = "Good morning" if hour < 12 else "Good afternoon" if hour < 17 else "Goo
 st.markdown(
     f"""<div class="hero"><div class="hi">{greet} 👋</div>
     <div class="name">Kisan Advisor 🌾</div>
-    <div class="sub">Live weather and mandi prices, in your language.</div></div>""",
+    <div class="sub">Live weather and mandi prices, explained in your language.</div>
+    <span class="chip">🌦 Live weather</span><span class="chip">🧺 Mandi prices</span><span class="chip">🔊 Voice</span></div>
+    <div class="steps"><div class="step"><b>1️⃣</b>Choose or speak</div>
+    <div class="step"><b>2️⃣</b>We fetch live data</div><div class="step"><b>3️⃣</b>Advice you can hear</div></div>""",
     unsafe_allow_html=True,
 )
 
@@ -116,6 +161,13 @@ def get_districts(state):
     return sorted({r["district"].strip() for r in rows})
 
 
+def safe(fn, *args):
+    try:
+        return fn(*args)
+    except Exception:
+        return []
+
+
 def match(value, options):
     """Match a spoken name to an option: exact, then close spelling, then containment."""
     if not value or not options:
@@ -131,23 +183,37 @@ def match(value, options):
     return sub[0] if len(sub) == 1 else None
 
 
+def uid():
+    """A number that is never reused, so widget keys never carry over old recordings or text."""
+    st.session_state["_uid"] = st.session_state.get("_uid", 0) + 1
+    return st.session_state["_uid"]
+
+
+def sb(label, options, key, placeholder, disabled=False):
+    """Selectbox that starts empty and forgets a value that is no longer one of the options."""
+    options = list(options)
+    if st.session_state.get(key) not in options:
+        st.session_state[key] = None
+    return st.selectbox(label, options, index=None, placeholder=placeholder, key=key, disabled=disabled)
+
+
 # ---------- voice helpers ----------
 SCRIPTS = [("hi", 0x0900, 0x097F), ("bn", 0x0980, 0x09FF), ("pa", 0x0A00, 0x0A7F), ("gu", 0x0A80, 0x0AFF),
            ("ta", 0x0B80, 0x0BFF), ("te", 0x0C00, 0x0C7F), ("kn", 0x0C80, 0x0CFF), ("ml", 0x0D00, 0x0D7F)]
 LANG_CODE = {"english": "en", "hindi": "hi", "tamil": "ta", "marathi": "mr"}
 PROMPTS = {
-    "start": {"en": "Please say your state, your district or village, and your crop.",
-              "hi": "कृपया अपना राज्य, ज़िला या गाँव, और फसल बताइए।",
-              "ta": "உங்கள் மாநிலம், மாவட்டம் அல்லது ஊர், மற்றும் பயிரைச் சொல்லுங்கள்.",
-              "mr": "कृपया तुमचे राज्य, जिल्हा किंवा गाव आणि पीक सांगा."},
-    "state": {"en": "Please say only your state.", "hi": "कृपया सिर्फ़ अपना राज्य बताइए।",
-              "ta": "உங்கள் மாநிலத்தை மட்டும் சொல்லுங்கள்.", "mr": "कृपया फक्त तुमचे राज्य सांगा."},
-    "place": {"en": "Please say only your district or village.", "hi": "कृपया सिर्फ़ अपना ज़िला या गाँव बताइए।",
-              "ta": "உங்கள் மாவட்டம் அல்லது ஊரை மட்டும் சொல்லுங்கள்.", "mr": "कृपया फक्त तुमचा जिल्हा किंवा गाव सांगा."},
-    "crop": {"en": "Please say only your crop.", "hi": "कृपया सिर्फ़ अपनी फसल बताइए।",
-             "ta": "உங்கள் பயிரை மட்டும் சொல்லுங்கள்.", "mr": "कृपया फक्त तुमचे पीक सांगा."},
-    "lang": {"en": "Which language would you like the answer in?", "hi": "आप जवाब किस भाषा में चाहते हैं?",
-             "ta": "எந்த மொழியில் பதில் வேண்டும்?", "mr": "तुम्हाला उत्तर कोणत्या भाषेत हवे आहे?"},
+    "state": {"en": "I could not catch your state. Please record again and say only your state.",
+              "hi": "मुझे आपका राज्य समझ नहीं आया। कृपया फिर से रिकॉर्ड करें और सिर्फ़ अपना राज्य बताएँ।",
+              "ta": "உங்கள் மாநிலம் எனக்குப் புரியவில்லை. மீண்டும் பதிவு செய்து மாநிலத்தை மட்டும் சொல்லுங்கள்.",
+              "mr": "मला तुमचे राज्य समजले नाही. कृपया पुन्हा रेकॉर्ड करा आणि फक्त राज्य सांगा."},
+    "place": {"en": "I could not catch your district or village. Please record again and say only that.",
+              "hi": "मुझे आपका ज़िला या गाँव समझ नहीं आया। कृपया फिर से रिकॉर्ड करें और सिर्फ़ वही बताएँ।",
+              "ta": "உங்கள் மாவட்டம் அல்லது ஊர் எனக்குப் புரியவில்லை. மீண்டும் பதிவு செய்து அதை மட்டும் சொல்லுங்கள்.",
+              "mr": "मला तुमचा जिल्हा किंवा गाव समजले नाही. कृपया पुन्हा रेकॉर्ड करा आणि फक्त तेच सांगा."},
+    "crop": {"en": "I could not catch your crop. Please record again and say only your crop.",
+             "hi": "मुझे आपकी फसल समझ नहीं आई। कृपया फिर से रिकॉर्ड करें और सिर्फ़ अपनी फसल बताएँ।",
+             "ta": "உங்கள் பயிர் எனக்குப் புரியவில்லை. மீண்டும் பதிவு செய்து பயிரை மட்டும் சொல்லுங்கள்.",
+             "mr": "मला तुमचे पीक समजले नाही. कृपया पुन्हा रेकॉर्ड करा आणि फक्त पीक सांगा."},
 }
 
 
@@ -197,13 +263,15 @@ def transcribe(audio_file):
 
 
 def extract(text, hint=None):
-    """Ask the AI to pull state / place / crop / language out of what the farmer said."""
+    """Ask the AI to pull state / place / crop / question / language out of what the farmer said."""
     system = ("You extract details from a farmer's spoken words in any Indian language. Reply with ONLY a JSON "
-              'object with keys "state", "place", "crop", "language". Use English names: translate or '
-              "transliterate (for example தஞ்சாவூர் -> Thanjavur, प्याज़ -> Onion, தமிழ்நாடு -> Tamil Nadu). "
-              '"place" is a district, town or village. "language" must be one of: English, Hindi, Marathi, '
-              "Tamil, Telugu, Kannada, Bengali, or null. Use null for anything not clearly said. Never guess.")
-    user = (f'The farmer was asked only for their {hint}. They said: "{text}"' if hint
+              'object with keys "state", "place", "crop", "question", "language". Use English names for state, '
+              "place and crop: translate or transliterate (for example தஞ்சாவூர் -> Thanjavur, प्याज़ -> Onion, "
+              'தமிழ்நாடு -> Tamil Nadu). "place" is a district, town or village. "question" is what the farmer wants '
+              'to know, copied in the farmer\'s own words, without the place and crop names if possible. "language" '
+              "must be one of: English, Hindi, Marathi, Tamil, Telugu, Kannada, Bengali, or null. Use null for "
+              "anything not clearly said. Never guess.")
+    user = (f'The farmer was asked to say their {hint}. They said: "{text}"' if hint
             else f'The farmer said: "{text}"')
     r = _client().chat.completions.create(model=os.environ["LLM_MODEL"], temperature=0,
                                           messages=[{"role": "system", "content": system},
@@ -213,8 +281,8 @@ def extract(text, hint=None):
         d = json.loads(m.group(0)) if m else {}
     except Exception:
         d = {}
-    clean_v = lambda v: None if (not v or str(v).strip().lower() in ("null", "none", "")) else str(v).strip()
-    return {k: clean_v(d.get(k)) for k in ("state", "place", "crop", "language")}
+    cv = lambda v: None if (not v or str(v).strip().lower() in ("null", "none", "")) else str(v).strip()
+    return {k: cv(d.get(k)) for k in ("state", "place", "crop", "question", "language")}
 
 
 # ---------- agent helpers ----------
@@ -253,163 +321,18 @@ def build_query(state, place, district, crop, question, lang):
     return q + READ_ALOUD
 
 
-def run_and_store(q, lang_hint=""):
+def run_and_store(res_key, q, lang_hint=""):
     answer, trace = ask_agent(q)
-    st.session_state["last"] = {"q": q, "answer": answer, "trace": trace, "lang": lang_hint,
-                                "audio": try_audio(answer, lang_hint), "autoplay": True,
-                                "followups": [], "n": 0}
+    st.session_state[res_key] = {"q": q, "answer": answer, "trace": trace, "lang": lang_hint,
+                                 "audio": try_audio(answer, lang_hint), "autoplay": True,
+                                 "followups": [], "key": uid()}
 
 
-# ---------- voice assistant state ----------
-def new_va():
-    return {"stage": "idle", "asking": None, "raw": {"state": None, "place": None, "crop": None},
-            "slots": {"state": None, "district": None, "place": None, "crop": None},
-            "lang": None, "pl": "en", "fails": {}, "prompt": "", "audio": None, "autoplay": False, "n": 0}
-
-
-def say(va, key):
-    va["prompt"] = PROMPTS[key].get(va["pl"], PROMPTS[key]["en"])
-    va["audio"] = try_audio(va["prompt"])
-    va["autoplay"] = True
-
-
-def va_resolve(va):
-    """Fill what we can from what was said. Returns the next thing to ask for, or None when complete."""
-    raw, s, fails = va["raw"], va["slots"], va["fails"]
-    if not s["state"]:
-        m = match(raw["state"], get_states())
-        if not m:
-            raw["state"] = None
-            return "state"
-        s["state"] = m
-    if not s["place"]:
-        if not raw["place"]:
-            return "place"
-        s["place"] = raw["place"]
-        s["district"] = match(raw["place"], get_districts(s["state"]))
-    if not s["crop"]:
-        if not raw["crop"]:
-            return "crop"
-        m = match(raw["crop"], get_crops(s["state"]))
-        if m:
-            s["crop"] = m
-        elif fails.get("crop", 0) >= 1:
-            s["crop"] = raw["crop"].title()
-        else:
-            fails["crop"] = fails.get("crop", 0) + 1
-            raw["crop"] = None
-            return "crop"
-    return None
-
-
-def va_process(va, rec):
-    text, wl = transcribe(rec)
-    if not text:
-        st.warning("I could not hear anything. Please try again.")
+def render_results(res_key, ns):
+    """Show the tiles, advice, charts and follow-up box for one of the two tabs. Each tab has its own result."""
+    last = st.session_state.get(res_key)
+    if not last:
         return
-    va["pl"] = LANG_CODE.get(wl.lower(), va["pl"])
-    va["heard"] = text
-    if va["stage"] == "collect":
-        data = extract(text, va["asking"])
-        for k in ("state", "place", "crop"):
-            if data.get(k):
-                va["raw"][k] = data[k]
-        nxt = va_resolve(va)
-        if nxt:
-            va["asking"] = nxt
-            say(va, nxt)
-        else:
-            va["stage"], va["asking"] = "lang", "language"
-            say(va, "lang")
-    else:  # asking for the answer language
-        lang = match(extract(text, "language").get("language"), VOICE_LANGS)
-        if lang:
-            va["lang"], va["stage"] = lang, "done"
-            s = va["slots"]
-            run_and_store(build_query(s["state"], s["place"], s["district"], s["crop"], "", lang), lang)
-            va["prompt"], va["audio"] = "Here is your advice. You can ask a follow-up below.", None
-        else:
-            say(va, "lang")
-    va["n"] += 1
-
-
-# ---------- the two ways to ask ----------
-tab_choose, tab_voice = st.tabs(["🗂  Choose", "🎙  Talk to me"])
-
-with tab_choose:
-    with st.container(border=True):
-        try:
-            with st.spinner("Loading states (the first load can take up to a minute)..."):
-                states = get_states()
-        except Exception:
-            states = []
-            st.warning("Could not load the list of states right now. Please try again in a minute.")
-        state = st.selectbox("🗺 State", states, index=None, placeholder="Select your state", key="c_state")
-        try:
-            districts = get_districts(state) if state else []
-        except Exception:
-            districts = []
-            st.warning("Could not load districts right now.")
-        district = st.selectbox("📍 District / village", districts, index=None,
-                                placeholder="Select your district", key="c_district", disabled=not state)
-        try:
-            crops = get_crops(state) if state else []
-        except Exception:
-            crops = []
-            st.warning("Could not load crops right now.")
-        crop = st.selectbox("🌱 Crop", crops, index=None, placeholder="Select your crop",
-                            key="c_crop", disabled=not district)
-        question = st.text_area("💬 Your question (optional)", value="", height=80,
-                                placeholder="For example: Should I sell now or wait?")
-        lang = st.selectbox("🗣 Answer language", LANGS, index=None, placeholder="Same as my question", key="c_lang")
-        go = st.button("Get advice", type="primary", use_container_width=True,
-                       disabled=not (state and district and crop))
-    if go:
-        run_and_store(build_query(state, None, district, crop, question.strip(), lang), lang or "")
-
-with tab_voice:
-    va = st.session_state.setdefault("va", new_va())
-    with st.container(border=True):
-        if va["stage"] == "idle":
-            st.write("Speak instead of typing. I will ask for anything I did not catch, then read the advice aloud.")
-            if st.button("🎙 Start", type="primary", use_container_width=True, key="va_start"):
-                va["stage"] = "collect"
-                say(va, "start")
-                st.rerun()
-        else:
-            with st.chat_message("assistant"):
-                st.write(va["prompt"])
-                if va["audio"]:
-                    st.audio(va["audio"], format="audio/mp3", autoplay=va["autoplay"])
-                    va["autoplay"] = False
-            if va.get("heard"):
-                with st.chat_message("user"):
-                    st.write(va["heard"])
-            if va["stage"] == "collect" and va["asking"] == "state":
-                try:
-                    st.caption("States available: " + ", ".join(get_states()))
-                except Exception:
-                    pass
-            if va["stage"] != "done":
-                rec = st.audio_input("Tap the mic, speak, then tap stop", key=f"va_rec_{va['n']}")
-                if st.button("Send", type="primary", use_container_width=True, key=f"va_send_{va['n']}"):
-                    if rec is None:
-                        st.warning("Please record your answer first.")
-                    else:
-                        try:
-                            with st.spinner("Listening..."):
-                                va_process(va, rec)
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Something went wrong: {e}")
-            if st.button("↺ Start over", use_container_width=True, key="va_reset"):
-                st.session_state["va"] = new_va()
-                st.session_state.pop("last", None)
-                st.rerun()
-
-# ---------- results (shared by both ways of asking) ----------
-last = st.session_state.get("last")
-if last:
     w = find(last["trace"], "get_weather")
     p = find(last["trace"], "get_mandi_prices")
     t1 = t2 = t3 = t4 = ("—", "")
@@ -429,16 +352,15 @@ if last:
         </div>""",
         unsafe_allow_html=True,
     )
-
     tab_advice, tab_weather, tab_price = st.tabs(["🧑‍🌾 Advice", "🌦 Weather", "🧺 Mandi prices"])
     with tab_advice:
-        st.markdown(last["answer"])
-        if last["audio"]:
-            st.audio(last["audio"], format="audio/mp3", autoplay=last["autoplay"])
-            last["autoplay"] = False
-        else:
-            st.caption("Voice playback is not available right now.")
-
+        with st.container(border=True):
+            st.markdown(last["answer"])
+            if last["audio"]:
+                st.audio(last["audio"], format="audio/mp3", autoplay=last["autoplay"])
+                last["autoplay"] = False
+            else:
+                st.caption("Voice playback is not available right now.")
     with tab_weather:
         if w and w.get("forecast"):
             df = pd.DataFrame(w["forecast"]).set_index("date")
@@ -448,7 +370,6 @@ if last:
             st.bar_chart(df["rain_mm"])
         else:
             st.info("No weather data was fetched for this question.")
-
     with tab_price:
         if p and p.get("markets"):
             mdf = pd.DataFrame(p["markets"]).rename(
@@ -460,7 +381,7 @@ if last:
             st.info("No mandi price data was available for this choice.")
 
     with st.container(border=True):
-        st.subheader("💬 Ask a follow-up")
+        st.markdown("#### 💬 Ask a follow-up")
         for fu in last["followups"]:
             with st.chat_message("user"):
                 st.write(fu["q"])
@@ -468,10 +389,10 @@ if last:
                 st.markdown(fu["a"])
                 if fu["audio"]:
                     st.audio(fu["audio"], format="audio/mp3")
-        n = last["n"]  # new widget keys after each question give fresh, empty inputs
-        fu_text = st.text_input("Type your follow-up question", key=f"fu_text_{n}")
-        fu_audio = st.audio_input("...or record it", key=f"fu_audio_{n}")
-        if st.button("Ask", type="primary", key=f"fu_btn_{n}", use_container_width=True):
+        k = last["key"]  # a new key after each question gives fresh, empty inputs
+        fu_text = st.text_input("Type your follow-up question", key=f"{ns}_fu_text_{k}")
+        fu_audio = st.audio_input("...or record it", key=f"{ns}_fu_audio_{k}")
+        if st.button("Ask", type="primary", key=f"{ns}_fu_btn_{k}", use_container_width=True):
             fq = (fu_text or "").strip()
             if not fq and fu_audio is not None:
                 try:
@@ -489,7 +410,164 @@ if last:
                           "Reply in the language of the follow-up question." + READ_ALOUD)
                 a, _ = ask_agent(prompt)
                 last["followups"].append({"q": fq, "a": a, "audio": try_audio(a, last["lang"])})
-                last["n"] += 1
+                last["key"] = uid()
                 st.rerun()
+
+
+# ---------- voice: turn a recording into form values ----------
+VOICE_FIELDS = ("v_state", "v_district", "v_crop", "v_lang")
+
+
+def v_apply(data, targets):
+    """Put what was heard into the form fields. Spoken names that are not in a list are kept so they can be edited."""
+    ss = st.session_state
+    if "state" in targets and data["state"]:
+        m = match(data["state"], safe(get_states))
+        if m:
+            if m != ss.get("v_state"):
+                ss["v_district"] = ss["v_crop"] = None
+            ss["v_state"] = m
+    raw = ss.setdefault("v_raw", {"place": None, "crop": None})
+    if "place" in targets and data["place"]:
+        raw["place"], ss["v_district"] = data["place"].title(), None
+    if "crop" in targets and data["crop"]:
+        raw["crop"], ss["v_crop"] = data["crop"].title(), None
+    state = ss.get("v_state")
+    if state:
+        if raw["place"] and not ss.get("v_district"):
+            ss["v_district"] = match(raw["place"], safe(get_districts, state)) or raw["place"]
+        if raw["crop"] and not ss.get("v_crop"):
+            ss["v_crop"] = match(raw["crop"], safe(get_crops, state)) or raw["crop"]
+    if data.get("question") and (not (ss.get("v_question") or "").strip() or targets == {"state", "place", "crop"}):
+        ss["v_question"] = data["question"]
+    lang = match(data.get("language"), VOICE_LANGS)
+    if lang:
+        ss["v_lang"] = lang
+
+
+def v_process(rec):
+    ss = st.session_state
+    text, wl = transcribe(rec)
+    if not text:
+        ss["v_prompt"], ss["v_prompt_audio"] = "I could not hear anything. Please try again.", None
+        return
+    ss["v_pl"] = LANG_CODE.get(wl.lower(), ss.get("v_pl", "en"))
+    ss["v_heard"] = text
+    cur = {"state": ss.get("v_state"), "place": ss.get("v_district"), "crop": ss.get("v_crop")}
+    empties = [k for k in ("state", "place", "crop") if not cur[k]]
+    targets = set(empties) if empties else {"state", "place", "crop"}
+    hint = empties[0] if 0 < len(empties) < 3 else None
+    v_apply(extract(text, hint), targets)
+    missing = [k for k, f in (("state", "v_state"), ("place", "v_district"), ("crop", "v_crop")) if not ss.get(f)]
+    if missing:
+        msg = PROMPTS[missing[0]].get(ss["v_pl"], PROMPTS[missing[0]]["en"])
+        ss["v_prompt"], ss["v_prompt_audio"], ss["v_autoplay"] = msg, try_audio(msg), True
+    else:
+        ss["v_prompt"] = "I found everything. Please check the details below, change anything you like, then press Get advice."
+        ss["v_prompt_audio"] = None
+
+
+def v_clear():
+    ss = st.session_state
+    for f in VOICE_FIELDS:
+        ss[f] = None
+    ss["v_question"] = ""
+    for f in ("v_heard", "v_prompt", "v_prompt_audio", "v_raw"):
+        ss.pop(f, None)
+    ss.pop("res_v", None)
+
+
+# ---------- the two ways to ask ----------
+tab_choose, tab_voice = st.tabs(["🗂  Choose", "🎙  Talk to me"])
+
+with tab_choose:
+    with st.container(border=True):
+        st.markdown("#### 🗂 Choose your details")
+        try:
+            with st.spinner("Loading states (the first load can take up to a minute)..."):
+                states = get_states()
+        except Exception:
+            states = []
+            st.warning("Could not load the list of states right now. Please try again in a minute.")
+        c_state = sb("🗺 State", states, "c_state", "Select your state")
+        c_district = sb("📍 District / village", safe(get_districts, c_state) if c_state else [], "c_district",
+                        "Select your district", disabled=not c_state)
+        c_crop = sb("🌱 Crop", safe(get_crops, c_state) if c_state else [], "c_crop", "Select your crop",
+                    disabled=not c_district)
+        c_question = st.text_area("💬 Your question (optional)", key="c_question", height=80,
+                                  placeholder="For example: Should I sell now or wait?")
+        c_lang = sb("🗣 Answer language", LANGS, "c_lang", "Same as my question")
+        c_go = st.button("Get advice", type="primary", use_container_width=True, key="c_go",
+                         disabled=not (c_state and c_district and c_crop))
+    if c_go:
+        run_and_store("res_c", build_query(c_state, None, c_district, c_crop, (c_question or "").strip(), c_lang),
+                      c_lang or "")
+    render_results("res_c", "c")
+
+with tab_voice:
+    ss = st.session_state
+    if "v_key" not in ss:
+        ss["v_key"] = uid()
+    with st.container(border=True):
+        st.markdown("#### 🎙 Tell me by voice")
+        st.write("Say your **state, district or village, crop and question**. I will fill in the form below, "
+                 "so you can check it and change anything before getting advice.")
+        rec = st.audio_input("Tap the mic, speak, then tap stop", key=f"v_rec_{ss['v_key']}")
+        b1, b2 = st.columns([3, 2])
+        send = b1.button("Understand my voice", type="primary", use_container_width=True, key=f"v_send_{ss['v_key']}")
+        clear = b2.button("Clear", use_container_width=True, key=f"v_clear_{ss['v_key']}")
+    if send:
+        if rec is None:
+            st.warning("Please record your voice first.")
+        else:
+            try:
+                with st.spinner("Listening..."):
+                    v_process(rec)
+                ss["v_key"] = uid()
+                need_rerun = True
+            except Exception as e:
+                st.error(f"Something went wrong: {e}")
+                need_rerun = False
+            if need_rerun:
+                st.rerun()
+    if clear:
+        v_clear()
+        ss["v_key"] = uid()
+        st.rerun()
+
+    if ss.get("v_heard"):
+        with st.chat_message("user"):
+            st.write(ss["v_heard"])
+    if ss.get("v_prompt"):
+        with st.chat_message("assistant"):
+            st.write(ss["v_prompt"])
+            if ss.get("v_prompt_audio"):
+                st.audio(ss["v_prompt_audio"], format="audio/mp3", autoplay=ss.get("v_autoplay", False))
+                ss["v_autoplay"] = False
+
+    with st.container(border=True):
+        st.markdown("#### ✏️ Check and edit")
+        states_v = safe(get_states)
+        cur_state = ss.get("v_state")
+        districts_v = safe(get_districts, cur_state) if cur_state else []
+        crops_v = safe(get_crops, cur_state) if cur_state else []
+        if ss.get("v_district") and ss["v_district"] not in districts_v:
+            districts_v = districts_v + [ss["v_district"]]  # a spoken name that is not in the list stays selectable
+        if ss.get("v_crop") and ss["v_crop"] not in crops_v:
+            crops_v = crops_v + [ss["v_crop"]]
+        v_state = sb("🗺 State", states_v, "v_state", "Heard from your voice, or select")
+        v_district = sb("📍 District / village", districts_v, "v_district", "Heard from your voice, or select",
+                        disabled=not v_state)
+        v_crop = sb("🌱 Crop", crops_v, "v_crop", "Heard from your voice, or select", disabled=not v_state)
+        v_question = st.text_area("💬 Your question", key="v_question", height=80,
+                                  placeholder="Your question will appear here")
+        v_lang = sb("🗣 Answer language", LANGS, "v_lang", "Same as my question")
+        v_go = st.button("Get advice", type="primary", use_container_width=True, key="v_go",
+                         disabled=not (v_state and v_district and v_crop))
+    if v_go:
+        in_list = v_district in safe(get_districts, v_state)
+        run_and_store("res_v", build_query(v_state, None if in_list else v_district, v_district if in_list else None,
+                                           v_crop, (v_question or "").strip(), v_lang), v_lang or "")
+    render_results("res_v", "v")
 
 st.caption("Weather: Open-Meteo · Mandi prices: Agmarknet (latest reported, may be a few days old)")
